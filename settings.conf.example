@@ -1,0 +1,10 @@
+# Pushover settings
+PUSHOVER_USER_KEY="fill in your user key from your Pushover dashboard"
+PUSHOVER_APP_TOKEN="fill in your app token from your Pushover dashboard"
+
+# Push notification limits
+MAX_PUSH_NOTIFICATIONS_PER_ROUND=5
+MAX_PUSH_NOTIFICATIONS_TOTAL=100
+
+# Temporary files directory
+TMP_DIR="./tmp"
