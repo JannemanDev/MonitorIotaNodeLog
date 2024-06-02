@@ -53,13 +53,16 @@ esac
 start_time=$(date -d "-$time_window_seconds seconds" +%Y-%m-%dT%H:%M:%S)
 
 # Retrieve logs for the specified time window
-sudo docker logs iota-core --since "$start_time" > "$TMP_DIR/latestLog.txt"
+sudo docker logs "$DOCKER_CONTAINER_NAME" --since "$start_time" > "$TMP_DIR/latestLog.txt"
 
-# Filter lines containing "error" (case insensitive) and save to errors1.txt
-grep -i "error" "$TMP_DIR/latestLog.txt" > "$TMP_DIR/errors1.txt"
+# Filter lines containing any of the search words (case insensitive)
+grep -iE "$(IFS='|'; echo "${SEARCH_WORDS[*]}")" "$TMP_DIR/latestLog.txt" > "$TMP_DIR/errors1.txt"
 
-# Replace patterns and save to errors2.txt
-sed -E 's/\b[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\s+//g; s/\(0x[a-fA-F0-9]+:[0-9]+\)//g; s/P2P\.peer[0-9]+/P2P.peerX/g; s/peerID: [a-zA-Z0-9]+/peerID: xxx/g' "$TMP_DIR/errors1.txt" > "$TMP_DIR/errors2.txt"
+# Apply SED patterns from the settings file
+cp "$TMP_DIR/errors1.txt" "$TMP_DIR/errors2.txt"
+for pattern in "${SED_PATTERNS[@]}"; do
+    sed -i -E "$pattern" "$TMP_DIR/errors2.txt"
+done
 
 # All consecutive whitespace replace with one space
 sed 's/[[:space:]]\+/ /g' "$TMP_DIR/errors2.txt" > "$TMP_DIR/errors3.txt"

@@ -44,6 +44,8 @@ send_pushover_notification() {
         --form-string "html=1" \
         https://api.pushover.net/1/messages.json
     ((push_notifications_sent++))
+    ((total_push_notifications_sent++))
+    echo
 }
 
 # Function to retrieve network information
@@ -113,15 +115,37 @@ run_process_logs() {
         if [ -n "$error" ]; then
             if (( push_notifications_sent < MAX_PUSH_NOTIFICATIONS_PER_ROUND )) && (( total_push_notifications_sent < MAX_PUSH_NOTIFICATIONS_TOTAL )); then
                 send_pushover_notification "$error"
-                ((total_push_notifications_sent++))
-                echo  # Print a new line
             else
-                echo "Max push notifications limit reached for this round/total."
+                msg="Max push notifications limit reached for this round ($push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_PER_ROUND) or total ($total_push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_TOTAL)."
+                echo "$msg"
+                send_pushover_notification "$msg"
                 break
             fi
         fi
     done < "$TMP_DIR/newErrors.txt"
 }
+
+# Function to be executed on script exit
+cleanup() {
+    echo
+    msg="Script ended."
+    send_pushover_notification "$msg"
+    echo "$msg"
+    exit 0
+}
+
+# to make it more responsive to SIGTERM
+custom_sleep() {
+    local duration=$1
+    local i
+
+    for ((i=0; i<duration; i++)); do
+        sleep 1
+    done
+}
+
+# Catch signals and execute cleanup function
+trap cleanup SIGINT SIGTERM SIGHUP SIGQUIT
 
 # Create temporary directory if it does not exist
 mkdir -p "$TMP_DIR"
@@ -135,17 +159,13 @@ default_answer="$3"
 time_window_seconds_first_round=$(convert_to_seconds "$time_window_first_round")
 loop_freq_seconds=$(convert_to_seconds "$loop_frequency")
 
-# rm -f "$TMP_DIR/errors?.txt"
-# rm -f "$TMP_DIR/allUniqueErrors.txt"
+get_network_info
+startup_message="Monitoring errors in logfile for $DOCKER_CONTAINER_NAME on:<br>Hostname: $hostname<br>Local IP: $local_ip<br>Remote IP: $remote_ip"
+send_pushover_notification "$startup_message"
 
 first_round_flag=true
 push_notifications_sent=0
 total_push_notifications_sent=0
-
-get_network_info
-startup_message="Monitoring errors in logfile for iota-core on:<br>Hostname: $hostname<br>Local IP: $local_ip<br>Remote IP: $remote_ip"
-send_pushover_notification "$startup_message"
-echo
 
 # Run indefinitely
 while true; do
@@ -154,6 +174,6 @@ while true; do
     next_round_time=$(date -d "+$loop_freq_seconds seconds" +"%Y-%m-%d %H:%M:%S")
     echo "Waiting for next round which will start at $next_round_time"
     echo
-    sleep "$loop_freq_seconds"
+    custom_sleep "$loop_freq_seconds"
     push_notifications_sent=0
 done
