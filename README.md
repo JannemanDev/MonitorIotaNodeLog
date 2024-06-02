@@ -4,7 +4,7 @@ This shellscript can monitor your iota-core docker log for any new unique error 
 
 # Pre-requisites
 
-One time lifetime license per platform (Android, iPhone, iPad, and Desktop (Android Wear and Apple Watch, too!)) where you want to receive push notifications on for only $5,-
+You need a one time lifetime [Pushover license](https://pushover.net/pricing) per platform (Android, iPhone, iPad, and Desktop (Android Wear and Apple Watch, too!)) where you want to receive push notifications on for only $5,-
 
 # Installation
 1. Clone the repo: `git clone https://github.com/JannemanDev/MonitorIotaNodeLog.git`
