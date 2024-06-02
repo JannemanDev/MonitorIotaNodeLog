@@ -10,8 +10,8 @@ One time lifetime license per platform (Android, iPhone, iPad, and Desktop (Andr
 1. Copy `settings.conf.example` to `settings.conf` and adjust it. Mandatory to change are the pushover settings.
 2. Run `runMonitorIotaNodeLogInBackground.sh` and it will run in the background as a screen under sudo since `docker logs` command needs sudo.
 
-After that you can see and go back to the screen using:
-List screens: `sudo screen -ls`
-Restore screen: `sudo screen -r MonitorIotaNodeLog`
+After that you can see and go back to the screen using:  
+List screens: `sudo screen -ls`  
+Restore screen: `sudo screen -r MonitorIotaNodeLog`  
 
 If you want to detach again and continue running in background use `Ctrl+a d`
