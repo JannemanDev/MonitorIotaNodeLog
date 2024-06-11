@@ -5,12 +5,15 @@ PUSHOVER_APP_TOKEN=""
 # Time window and loop frequency settings
 # [s|m|h|d] (seconds, minutes, hours, days)
 # Set the time span to read from the docker logs for (only) the first round
+# If empty whole log will be read
 TIME_WINDOW_FIRST_ROUND="1d"
 # Check docker log frequency. After this timespan the docker log will be read again.
-LOOP_FREQUENCY="15m"
+LOOP_FREQUENCY="2m"
+
+HEALTH_CHECK_FREQUENCY=5s
 
 # Push notification limits
-MAX_PUSH_NOTIFICATIONS_PER_ROUND=5
+MAX_PUSH_NOTIFICATIONS_PER_ROUND=2
 MAX_PUSH_NOTIFICATIONS_TOTAL=100
 
 # Temporary files directory
@@ -33,4 +36,9 @@ SED_PATTERNS=(
     's/\/dns\/[^ ]+/\/dns\/xxx/g'
     's/\/ip4\/[^ ]+/\/ip4\/xxx/g'
     's/\/ip6\/[^ ]+/\/ip6\/xxx/g'
+    's/with slot [0-9]+/with slot xxx/g'
+    's/([0-9]{1,3}.){3}[0-9]{1,3}:[0-9]{1,5}/x.x.x.x:y/g'
+    's/\[[0-9]+.[0-9]+ms\]/[x ms]/g'
+    's/\[rows:[0-9]+\]/[rows: x]/g'
+    's/\(.+?,.+?,.+?,.+?,.+?,.+?\)/(x,x,x,x,x,x)/g'
 )
