@@ -1,3 +1,6 @@
+#!/bin/bash
+# shellcheck disable=SC2317  # Don't warn about unreachable commands in this file
+
 format_lines() {
     local filename="$1"
 
@@ -12,7 +15,7 @@ format_lines() {
     while IFS= read -r line; do
         echo " [$line_number] = \"$line\""
         line_number=$((line_number + 1))
-    done < "$filename"
+    done <"$filename"
 }
 
 validate_time_format() {
@@ -27,15 +30,21 @@ validate_time_format() {
 # Function to convert time format s(econds), m(inutes), h(ours), d(ays) to seconds
 convert_to_seconds() {
     local time_str="$1"
-    local time_format=$(echo "$time_str" | sed 's/[0-9]*//g')
-    local time_value=$(echo "$time_str" | sed 's/[s|m|h|d]//g')
+    local time_format
+    local time_value
+
+    time_format="${time_str//[^smhd]/}"
+    time_value="${time_str//[smhd]/}"
 
     case "$time_format" in
-        s) echo "$time_value";;
-        m) echo "$((time_value * 60))";;
-        h) echo "$((time_value * 3600))";;
-        d) echo "$((time_value * 86400))";;
-        *) echo "Invalid time format"; exit 1;;
+    s) echo "$time_value" ;;
+    m) echo "$((time_value * 60))" ;;
+    h) echo "$((time_value * 3600))" ;;
+    d) echo "$((time_value * 86400))" ;;
+    *)
+        echo "Invalid time format"
+        exit 1
+        ;;
     esac
 }
 
@@ -44,11 +53,11 @@ get_network_info() {
     local local_ip
     local remote_ip
     local hostname
-    
+
     local_ip=$(hostname -I | awk '{print $1}')
     remote_ip=$(curl -s ifconfig.me)
     hostname=$(hostname)
-    
+
     echo "$local_ip"
     echo "$remote_ip"
     echo "$hostname"
@@ -68,7 +77,7 @@ format_lines() {
     while IFS= read -r line; do
         echo " [$line_number] = \"$line\""
         line_number=$((line_number + 1))
-    done < "$filename"
+    done <"$filename"
 }
 
 validate_time_format() {
@@ -86,12 +95,12 @@ custom_sleep() {
     local duration=$1
     local i
 
-    for ((i=0; i<duration; i++)); do
+    for ((i = 0; i < duration; i++)); do
         sleep 1
     done
 }
 
-extract_node_id_from_docker_container(){
+extract_node_id_from_docker_container() {
     local docker_name="$1"
     local node_id
     # Run docker logs command and capture the output
@@ -109,7 +118,7 @@ extract_node_id_from_docker_container(){
     fi
 }
 
-get_node_health_from_docker_container(){
+get_node_health_from_docker_container() {
     local docker_name="$1"
     local is_healthy
     node_info_output=$(sudo docker exec "$docker_name" /app/iota-core tools node-info 2>/dev/null)
@@ -119,49 +128,47 @@ get_node_health_from_docker_container(){
 
 running_as_root() {
     if [ "$EUID" -eq 0 ]; then
-        return 0  # True, script is run as root
+        return 0 # True, script is run as root
     else
-        return 1  # False, script is not run as root
+        return 1 # False, script is not run as root
     fi
 }
 
 docker_running() {
-    if sudo docker info > /dev/null 2>&1; then
-        return 0    # Docker is running
+    if sudo docker info >/dev/null 2>&1; then
+        return 0 # Docker is running
     else
-        return 1    # Docker is not running
+        return 1 # Docker is not running
     fi
 }
 
 # returns state_health_status and state_status as array
-get_container_state(){
+get_container_state() {
     local docker_name="$1"
     local docker_inspect_json_output
     local state_health_status
     local state_status
-    
+
     docker_inspect_json_output=$(sudo docker inspect "$docker_name" 2>/dev/null)
-    
+
     # Parse JSON data (quote the result string using -r)
     state_health_status=$(echo "$docker_inspect_json_output" | jq -r '.[0].State.Health.Status')
     state_status=$(echo "$docker_inspect_json_output" | jq -r '.[0].State.Status')
 
     echo "$state_health_status"
-    echo "$state_status"    
+    echo "$state_status"
 }
 
 send_pushover_notification() {
     local message="$1"
-    
+
     # Run curl command and check if it failed
-    curl_output=$(curl -s \
+    if ! curl_output=$(curl -s \
         --form-string "user=$PUSHOVER_USER_KEY" \
         --form-string "token=$PUSHOVER_APP_TOKEN" \
         --form-string "message=$message" \
         --form-string "html=1" \
-        https://api.pushover.net/1/messages.json)
-    
-    if [ $? -ne 0 ]; then
+        https://api.pushover.net/1/messages.json); then
         echo "Error: curl command failed"
         return 1
     fi
@@ -172,6 +179,6 @@ send_pushover_notification() {
         echo "Error: $error_message"
         return 1
     fi
-    
+
     return 0
 }
