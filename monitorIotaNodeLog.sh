@@ -8,6 +8,7 @@ if [ ! -f "$SETTINGS_FILE" ]; then
 fi
 
 # Source the settings from the configuration file
+# shellcheck source=settings.conf.example
 source "$SETTINGS_FILE"
 # Set a flag to indicate that settings.sh has been loaded
 SETTINGS_LOADED="true"
@@ -18,22 +19,18 @@ source common_functions.sh
 send_pushover_notification_rate_limited() {
     local message="$1"
     local rate_limited=1
-    local send_result=0
-    
-    if (( push_notifications_sent < MAX_PUSH_NOTIFICATIONS_PER_ROUND )) && (( total_push_notifications_sent < MAX_PUSH_NOTIFICATIONS_TOTAL )); then
+
+    if ((push_notifications_sent < MAX_PUSH_NOTIFICATIONS_PER_ROUND)) && ((total_push_notifications_sent < MAX_PUSH_NOTIFICATIONS_TOTAL)); then
         # when not rate limited:
-        $(send_pushover_notification "$message")
-        send_result=$?
-        
-        if [ $send_result -eq 0 ]; then
+        if send_pushover_notification "$message"; then
             ((push_notifications_sent++))
             ((total_push_notifications_sent++))
-            
+
             echo "Push notification sent ($push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_PER_ROUND) ($total_push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_TOTAL)!"
         fi
     else
         rate_limited=0
-        
+
         rate_limited_msg="Can not sent push notification! Max limit reached for this round ($push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_PER_ROUND) or total ($total_push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_TOTAL)."
         echo "$rate_limited_msg"
         send_pushover_notification "$rate_limited_msg"
@@ -45,14 +42,15 @@ send_pushover_notification_rate_limited() {
 send_pushover_notification_not_rate_limited() {
     local message="$1"
     local send_result
-    
-    send_result=$(send_pushover_notification "$message")
-        
-    if [ send_result ]; then
+
+    send_pushover_notification "$message"
+    send_result=$?
+
+    if [ $send_result -eq 0 ]; then
         echo "Push notification sent with message:"
         echo "\"$message\""
     fi
-    
+
     return $send_result
 }
 
@@ -66,7 +64,7 @@ cleanup() {
     msg="Script ended $INSTANCE_DESCRIPTION"
     send_pushover_notification_not_rate_limited "$msg"
     echo "$msg"
-    
+
     exit 0
 }
 
@@ -107,34 +105,34 @@ run_process_logs() {
 
     searchDockerLogForErrors "${search_params[@]}"
     # if ! searchDockerLogForErrors "${search_params[@]}"; then
-        # echo "searchDockerLogForErrors.sh failed"
-        # return
+    # echo "searchDockerLogForErrors.sh failed"
+    # return
     # fi
 
     # be sure to remove any empty/blank/only whitespace lines before comparing
-    grep -vE '^\s*$' "$TMP_DIR/errors4.txt" > "$TMP_DIR/errors4.txt.tmp" && mv "$TMP_DIR/errors4.txt.tmp" "$TMP_DIR/errors4.txt"
+    grep -vE '^\s*$' "$TMP_DIR/errors4.txt" >"$TMP_DIR/errors4.txt.tmp" && mv "$TMP_DIR/errors4.txt.tmp" "$TMP_DIR/errors4.txt"
 
     # Check if already exists
     allUniqueErrorsFile="allUniqueErrors_$node_id.txt"
     echo "allUniqueErrorsFile=$allUniqueErrorsFile"
     if [ -f "$TMP_DIR/$allUniqueErrorsFile" ]; then
         # be sure to remove any empty/blank/only whitespace lines before comparing
-        grep -vE '^\s*$' "$TMP_DIR/$allUniqueErrorsFile" > "$TMP_DIR/$allUniqueErrorsFile.tmp" && mv "$TMP_DIR/$allUniqueErrorsFile.tmp" "$TMP_DIR/$allUniqueErrorsFile"
+        grep -vE '^\s*$' "$TMP_DIR/$allUniqueErrorsFile" >"$TMP_DIR/$allUniqueErrorsFile.tmp" && mv "$TMP_DIR/$allUniqueErrorsFile.tmp" "$TMP_DIR/$allUniqueErrorsFile"
         # Compare the new errors with the all previous ones and save to new (unique) errors
-        comm -13 <(sort "$TMP_DIR/$allUniqueErrorsFile") <(sort "$TMP_DIR/errors4.txt") > "$TMP_DIR/newErrors.txt"
+        comm -13 <(sort "$TMP_DIR/$allUniqueErrorsFile") <(sort "$TMP_DIR/errors4.txt") >"$TMP_DIR/newErrors.txt"
     else
         # first round so all errors are new and copied to $allUniqueErrorsFile
         cp "$TMP_DIR/errors4.txt" "$TMP_DIR/newErrors.txt"
     fi
 
-    line_count=$(wc -l < "$TMP_DIR/newErrors.txt")
+    line_count=$(wc -l <"$TMP_DIR/newErrors.txt")
     echo "Number of NEW unique errors in this round: $line_count"
 
     format_lines "$TMP_DIR/newErrors.txt"
 
-    cat "$TMP_DIR/newErrors.txt" >> "$TMP_DIR/$allUniqueErrorsFile"
+    cat "$TMP_DIR/newErrors.txt" >>"$TMP_DIR/$allUniqueErrorsFile"
 
-    line_count=$(wc -l < "$TMP_DIR/$allUniqueErrorsFile")
+    line_count=$(wc -l <"$TMP_DIR/$allUniqueErrorsFile")
     echo "All unique errors so far: $line_count"
 
     # Send a Pushover notification for each new error in newErrors.txt
@@ -144,26 +142,26 @@ run_process_logs() {
                 break
             fi
         fi
-    done < "$TMP_DIR/newErrors.txt"
+    done <"$TMP_DIR/newErrors.txt"
 }
 
-generate_instance_description(){
+generate_instance_description() {
     local instance_description
-    
-    network_info=($(get_network_info))
-    local_ip=network_info[0]
-    remote_ip=network_info[0]
-    hostname=network_info[0]
+
+    mapfile -t network_info < <(get_network_info)
+    local_ip=${network_info[0]}
+    remote_ip=${network_info[1]}
+    hostname=${network_info[2]}
 
     current_path=$(pwd)
     instance_description="for $DOCKER_CONTAINER_NAME running from path \"$current_path\" on:<br>Hostname: $hostname<br>Local IP: $local_ip<br>Remote IP: $remote_ip"
-    
+
     echo "$instance_description"
 }
 
-create_lockfile(){
+create_lockfile() {
     local lockfile="$1"
-    
+
     # Check if lockfile exists
     if [ -e "$lockfile" ]; then
         echo "Error: Lockfile $lockfile exists. Another instance of the script is running."
@@ -204,26 +202,26 @@ show_help=false
 # Parse options
 while getopts ":t:l:h" opt; do
     case ${opt} in
-        t )
-            time_window_first_round=$OPTARG
-            ;;
-        l )
-            loop_frequency=$OPTARG
-            ;;
-        h )
-            show_help=true
-            ;;            
-        \? )
-            echo "Invalid option: $OPTARG" 1>&2
-            exit 1
-            ;;
-        : )
-            echo "Invalid option: $OPTARG requires an argument" 1>&2
-            exit 1
-            ;;
+    t)
+        time_window_first_round=$OPTARG
+        ;;
+    l)
+        loop_frequency=$OPTARG
+        ;;
+    h)
+        show_help=true
+        ;;
+    \?)
+        echo "Invalid option: $OPTARG" 1>&2
+        exit 1
+        ;;
+    :)
+        echo "Invalid option: $OPTARG requires an argument" 1>&2
+        exit 1
+        ;;
     esac
 done
-shift $((OPTIND -1))
+shift $((OPTIND - 1))
 
 # echo "time_window_first_round=$time_window_first_round"
 # echo "loop_frequency=$loop_frequency"
@@ -284,7 +282,7 @@ echo "next_run_process_logs=$next_run_process_logs"
 
 while true; do
     while true; do
-        container_state=($(get_container_state "$DOCKER_CONTAINER_NAME"))
+        mapfile -t container_state < <(get_container_state "$DOCKER_CONTAINER_NAME")
         state_health_status="${container_state[0]}"
         state_status="${container_state[1]}"
 
@@ -298,7 +296,7 @@ while true; do
             previous_state_status="$state_status"
             send_pushover_notification_not_rate_limited "$msg"
         fi
-        
+
         node_id=$(extract_node_id_from_docker_container "$DOCKER_CONTAINER_NAME")
         if [ "$node_id" != "$previous_node_id" ]; then
             if [ -n "$previous_node_id" ]; then
@@ -310,7 +308,7 @@ while true; do
             send_pushover_notification_not_rate_limited "$msg"
         fi
         echo "node_id=$node_id"
-        
+
         if [ "$state_health_status" = "healthy" ] && [ "$state_status" = "running" ]; then
             break
         fi
@@ -318,8 +316,8 @@ while true; do
         # retry after 1 second
         custom_sleep 1
     done
-  
-    if (( $(date +%s) >= next_health_check )); then
+
+    if (($(date +%s) >= next_health_check)); then
         node_is_healthy=$(get_node_health_from_docker_container "$DOCKER_CONTAINER_NAME")
         if [ "$node_is_healthy" != "$previous_node_is_healthy" ]; then
             if [ -n "$previous_node_is_healthy" ]; then
@@ -330,17 +328,17 @@ while true; do
             previous_node_is_healthy="$node_is_healthy"
             send_pushover_notification_not_rate_limited "$msg"
         fi
-        next_health_check=$(( $(date +%s) + health_check_frequency_seconds ))
+        next_health_check=$(($(date +%s) + health_check_frequency_seconds))
         echo "next_health_check=$next_health_check"
     fi
-    
-    if (( $(date +%s) >= next_run_process_logs )); then
+
+    if (($(date +%s) >= next_run_process_logs)); then
         push_notifications_sent=0
         run_process_logs
         first_round_flag=false
-        next_run_process_logs=$(( $(date +%s) + loop_freq_seconds ))
-        echo "next_run_process_logs=$next_run_process_logs"        
+        next_run_process_logs=$(($(date +%s) + loop_freq_seconds))
+        echo "next_run_process_logs=$next_run_process_logs"
     fi
-    
+
     custom_sleep 1
 done

@@ -13,13 +13,13 @@ LOOP_FREQUENCY="2m"
 HEALTH_CHECK_FREQUENCY=5s
 
 # Push notification limits
-MAX_PUSH_NOTIFICATIONS_PER_ROUND=2
+MAX_PUSH_NOTIFICATIONS_PER_ROUND=5
 MAX_PUSH_NOTIFICATIONS_TOTAL=100
 
 # Temporary files directory
 TMP_DIR="./tmp"
 
-# Search settings
+# Search words (regex is allowed)
 SEARCH_WORDS=("error" "fail" "critical" "warning" "panic")
 #SEARCH_WORDS=("error")
 
@@ -41,4 +41,5 @@ SED_PATTERNS=(
     's/\[[0-9]+.[0-9]+ms\]/[x ms]/g'
     's/\[rows:[0-9]+\]/[rows: x]/g'
     's/\(.+?,.+?,.+?,.+?,.+?,.+?\)/(x,x,x,x,x,x)/g'
+    's/\(max [0-9]+ seconds\)/\(max x seconds\)/g'
 )

@@ -7,7 +7,7 @@ format_lines() {
     # Check if the file exists
     if [ ! -f "$filename" ]; then
         echo "File not found!"
-        return 1
+        exit 1
     fi
 
     # Read the file line by line
@@ -28,6 +28,7 @@ validate_time_format() {
 }
 
 # Function to convert time format s(econds), m(inutes), h(ours), d(ays) to seconds
+# For example: 2m -> 120
 convert_to_seconds() {
     local time_str="$1"
     local time_format
@@ -61,32 +62,6 @@ get_network_info() {
     echo "$local_ip"
     echo "$remote_ip"
     echo "$hostname"
-}
-
-format_lines() {
-    local filename="$1"
-
-    # Check if the file exists
-    if [ ! -f "$filename" ]; then
-        echo "File not found!"
-        return 1
-    fi
-
-    # Read the file line by line
-    local line_number=1
-    while IFS= read -r line; do
-        echo " [$line_number] = \"$line\""
-        line_number=$((line_number + 1))
-    done <"$filename"
-}
-
-validate_time_format() {
-    local time_str="$1"
-    local param_name="$2"
-    if [[ ! "$time_str" =~ ^[0-9]+[smhd]$ ]]; then
-        echo "Error: Invalid time format for $param_name: $time_str. Please use format <number>[s|m|h|d]."
-        exit 1
-    fi
 }
 
 # to make it more responsive to SIGTERM
@@ -169,14 +144,8 @@ send_pushover_notification() {
         --form-string "message=$message" \
         --form-string "html=1" \
         https://api.pushover.net/1/messages.json); then
-        echo "Error: curl command failed"
-        return 1
-    fi
 
-    # Check if curl returned an error message
-    error_message=$(echo "$curl_output" | jq -r '.errors[0]')
-    if [ -n "$error_message" ] && [ "$error_message" != "null" ]; then
-        echo "Error: $error_message"
+        echo "Error curl command failed: $curl_output"
         return 1
     fi
 

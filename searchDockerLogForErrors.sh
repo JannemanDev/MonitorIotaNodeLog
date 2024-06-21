@@ -2,4 +2,4 @@
 
 source searchDockerLogForErrorsInclude.sh
 
-searchDockerLogForErrors "$@"  # Call the function with command line arguments
+searchDockerLogForErrors "$@" # Call the function with command line arguments
