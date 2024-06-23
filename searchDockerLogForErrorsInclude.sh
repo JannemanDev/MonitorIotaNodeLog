@@ -17,7 +17,7 @@ searchDockerLogForErrors() {
         exit 1
     fi
 
-    echo "node_id=$node_id"
+    #echo "node_id=$node_id"
 
     if [ -z "$SETTINGS_LOADED" ]; then
         echo "Loading settings"
@@ -92,10 +92,10 @@ searchDockerLogForErrors() {
     if [ -z "$use_docker_log_file_as_input" ]; then
         if [ -n "$time_window" ]; then
             # shellcheck disable=SC2024
-            sudo docker logs "$DOCKER_CONTAINER_NAME" --since "$start_time" >"$TMP_DIR/latestLog.txt"
+            sudo docker logs "$CORE_DOCKER_CONTAINER_NAME" --since "$start_time" >"${TMP_DIR}/latestLog_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
         else
             # shellcheck disable=SC2024
-            sudo docker logs "$DOCKER_CONTAINER_NAME" >"$TMP_DIR/latestLog.txt"
+            sudo docker logs "$CORE_DOCKER_CONTAINER_NAME" >"${TMP_DIR}/latestLog_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
         fi
     else
         if [ -n "$time_window" ]; then
@@ -125,9 +125,9 @@ searchDockerLogForErrors() {
                     print
                 }
             }
-            ' "$use_docker_log_file_as_input" >"$TMP_DIR/latestLog.txt"
+            ' "$use_docker_log_file_as_input" >"${TMP_DIR}/latestLog_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
         else
-            cp "$use_docker_log_file_as_input" "$TMP_DIR/latestLog.txt"
+            cp "$use_docker_log_file_as_input" "${TMP_DIR}/latestLog_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
         fi
     fi
 
@@ -135,22 +135,22 @@ searchDockerLogForErrors() {
     grep -iE "$(
         IFS='|'
         echo "${SEARCH_WORDS[*]}"
-    )" "$TMP_DIR/latestLog.txt" >"$TMP_DIR/errors1.txt"
+    )" "${TMP_DIR}/latestLog_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" >"${TMP_DIR}/errors1_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
 
     # Apply SED patterns from the settings file
-    cp "$TMP_DIR/errors1.txt" "$TMP_DIR/errors2.txt"
+    cp "${TMP_DIR}/errors1_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" "${TMP_DIR}/errors2_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
     for pattern in "${SED_PATTERNS[@]}"; do
-        sed -i -E "$pattern" "$TMP_DIR/errors2.txt"
+        sed -i -E "$pattern" "${TMP_DIR}/errors2_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
     done
 
     # All consecutive whitespace replaced with one space and trim lines
-    sed 's/[[:space:]]\+/ /g' "$TMP_DIR/errors2.txt" | awk '{$1=$1; print}' >"$TMP_DIR/errors3.txt"
+    sed 's/[[:space:]]\+/ /g' "${TMP_DIR}/errors2_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" | awk '{$1=$1; print}' >"${TMP_DIR}/errors3_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
 
     # Remove duplicate lines and save to errors4.txt
-    sort -u "$TMP_DIR/errors3.txt" >"$TMP_DIR/errors4.txt"
+    sort -u "${TMP_DIR}/errors3_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" >"${TMP_DIR}/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
 
     # Show the number of lines in errors4.txt
-    line_count=$(wc -l <"$TMP_DIR/errors4.txt")
+    line_count=$(wc -l <"${TMP_DIR}/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt")
     echo "Number of unique errors found for this round in the docker log since $start_time is $line_count"
 
     # Prompt to show the output or use the default answer
@@ -163,6 +163,6 @@ searchDockerLogForErrors() {
     fi
 
     if [[ "$response" =~ ^(y|Y|)$ ]]; then
-        format_lines "$TMP_DIR/errors4.txt"
+        print_lines_from_file_formatted "${TMP_DIR}/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
     fi
 }

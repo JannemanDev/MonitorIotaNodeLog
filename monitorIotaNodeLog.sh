@@ -15,10 +15,10 @@ SETTINGS_LOADED="true"
 
 source common_functions.sh
 
-# return false if push notification was not sent because of rate limitation
+# returns failure/error if push notification was not sent because of rate limitation
 send_pushover_notification_rate_limited() {
     local message="$1"
-    local rate_limited=1
+    local rate_limited=0
 
     if ((push_notifications_sent < MAX_PUSH_NOTIFICATIONS_PER_ROUND)) && ((total_push_notifications_sent < MAX_PUSH_NOTIFICATIONS_TOTAL)); then
         # when not rate limited:
@@ -29,16 +29,17 @@ send_pushover_notification_rate_limited() {
             echo "Push notification sent ($push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_PER_ROUND) ($total_push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_TOTAL)!"
         fi
     else
-        rate_limited=0
+        rate_limited=1
 
         rate_limited_msg="Can not sent push notification! Max limit reached for this round ($push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_PER_ROUND) or total ($total_push_notifications_sent/$MAX_PUSH_NOTIFICATIONS_TOTAL)."
         echo "$rate_limited_msg"
         send_pushover_notification "$rate_limited_msg"
     fi
 
-    return $((!rate_limited))
+    return $rate_limited
 }
 
+# returns failure/error if push notifaction was not successfully sent
 send_pushover_notification_not_rate_limited() {
     local message="$1"
     local send_result
@@ -69,7 +70,7 @@ cleanup() {
 }
 
 usage() {
-    echo "Usage: $0 -t <time_window_first_round> -l <loop_frequency>"
+    echo "Usage: $0 -l <loop_frequency> -t <time_window_first_round>"
     echo "Loop frequency format (required): <number>[s|m|h|d] (seconds, minutes, hours, days)"
     echo "Time window format    (optional): <number>[s|m|h|d] (seconds, minutes, hours, days)"
 }
@@ -90,47 +91,42 @@ run_process_logs() {
 
     # Add time window parameter to search_params if applicable
     if [ -n "$time_window_first_round" ] || [ "$first_round_flag" = false ]; then
-        # Adjust the time window parameter if needed
+        # make time_window a bit larger to be sure it has some overlap with previous check
         adjusted_time_window_param=$((time_window_param + 60))
         search_params+=(-t "$adjusted_time_window_param""s")
     fi
 
-    # Call searchDockerLogForErrors.sh script with adjusted parameters
     source searchDockerLogForErrorsInclude.sh
 
-    echo "Contents of search_params array:"
-    for search_param in "${search_params[@]}"; do
-        echo "search_param=$search_param"
-    done
+    # echo "Contents of search_params array:"
+    # for search_param in "${search_params[@]}"; do
+    #     echo "search_param=$search_param"
+    # done
 
     searchDockerLogForErrors "${search_params[@]}"
-    # if ! searchDockerLogForErrors "${search_params[@]}"; then
-    # echo "searchDockerLogForErrors.sh failed"
-    # return
-    # fi
 
     # be sure to remove any empty/blank/only whitespace lines before comparing
-    grep -vE '^\s*$' "$TMP_DIR/errors4.txt" >"$TMP_DIR/errors4.txt.tmp" && mv "$TMP_DIR/errors4.txt.tmp" "$TMP_DIR/errors4.txt"
+    grep -vE '^\s*$' "$TMP_DIR/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" >"$TMP_DIR/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt.tmp" && mv "$TMP_DIR/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt.tmp" "$TMP_DIR/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
 
     # Check if already exists
-    allUniqueErrorsFile="allUniqueErrors_$node_id.txt"
+    allUniqueErrorsFile="allUniqueErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
     echo "allUniqueErrorsFile=$allUniqueErrorsFile"
     if [ -f "$TMP_DIR/$allUniqueErrorsFile" ]; then
         # be sure to remove any empty/blank/only whitespace lines before comparing
         grep -vE '^\s*$' "$TMP_DIR/$allUniqueErrorsFile" >"$TMP_DIR/$allUniqueErrorsFile.tmp" && mv "$TMP_DIR/$allUniqueErrorsFile.tmp" "$TMP_DIR/$allUniqueErrorsFile"
         # Compare the new errors with the all previous ones and save to new (unique) errors
-        comm -13 <(sort "$TMP_DIR/$allUniqueErrorsFile") <(sort "$TMP_DIR/errors4.txt") >"$TMP_DIR/newErrors.txt"
+        comm -13 <(sort "$TMP_DIR/$allUniqueErrorsFile") <(sort "$TMP_DIR/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt") >"$TMP_DIR/newErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
     else
         # first round so all errors are new and copied to $allUniqueErrorsFile
-        cp "$TMP_DIR/errors4.txt" "$TMP_DIR/newErrors.txt"
+        cp "$TMP_DIR/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" "$TMP_DIR/newErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
     fi
 
-    line_count=$(wc -l <"$TMP_DIR/newErrors.txt")
+    line_count=$(wc -l <"$TMP_DIR/newErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt")
     echo "Number of NEW unique errors in this round: $line_count"
 
-    format_lines "$TMP_DIR/newErrors.txt"
+    print_lines_from_file_formatted "$TMP_DIR/newErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
 
-    cat "$TMP_DIR/newErrors.txt" >>"$TMP_DIR/$allUniqueErrorsFile"
+    cat "$TMP_DIR/newErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt" >>"$TMP_DIR/$allUniqueErrorsFile"
 
     line_count=$(wc -l <"$TMP_DIR/$allUniqueErrorsFile")
     echo "All unique errors so far: $line_count"
@@ -142,7 +138,7 @@ run_process_logs() {
                 break
             fi
         fi
-    done <"$TMP_DIR/newErrors.txt"
+    done <"$TMP_DIR/newErrors_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt"
 }
 
 generate_instance_description() {
@@ -154,22 +150,9 @@ generate_instance_description() {
     hostname=${network_info[2]}
 
     current_path=$(pwd)
-    instance_description="for $DOCKER_CONTAINER_NAME running from path \"$current_path\" on:<br>Hostname: $hostname<br>Local IP: $local_ip<br>Remote IP: $remote_ip"
+    instance_description="for $CORE_DOCKER_CONTAINER_NAME running from path \"$current_path\" on:<br>Hostname: $hostname<br>Local IP: $local_ip<br>Remote IP: $remote_ip"
 
     echo "$instance_description"
-}
-
-create_lockfile() {
-    local lockfile="$1"
-
-    # Check if lockfile exists
-    if [ -e "$lockfile" ]; then
-        echo "Error: Lockfile $lockfile exists. Another instance of the script is running."
-        exit 1
-    fi
-
-    # Create lockfile
-    touch "$lockfile"
 }
 
 ### Start of main program ###
@@ -252,10 +235,6 @@ loop_freq_seconds=$(convert_to_seconds "$loop_frequency")
 
 # Get the name of the running script
 SCRIPT_NAME=$(basename "$0")
-# Define lockfile in the current directory
-LOCKFILE="./${SCRIPT_NAME}.lock"
-
-create_lockfile "$LOCKFILE"
 
 INSTANCE_DESCRIPTION=$(generate_instance_description)
 startup_message="Monitoring errors in logfile $INSTANCE_DESCRIPTION"
@@ -270,19 +249,24 @@ previous_state_health_status=""
 previous_state_status=""
 previous_node_id=""
 previous_node_is_healthy=""
+previous_indexer_is_healthy=""
 
 health_check_frequency_seconds=$(convert_to_seconds "$HEALTH_CHECK_FREQUENCY")
 
 # start first run immediately (health and run_process_logs)
-next_health_check=$(date +%s)
-next_run_process_logs=$(date +%s)
+now=$(date +%s)
+next_node_health_check=$now
+next_indexer_health_check=$now
+next_run_process_logs=$now
 
-echo "next_health_check=$next_health_check"
+echo "next_node_health_check=$next_node_health_check"
+echo "next_indexer_health_check=$next_indexer_health_check"
 echo "next_run_process_logs=$next_run_process_logs"
 
 while true; do
+    # waiting till iota-core docker container is healthy and running
     while true; do
-        mapfile -t container_state < <(get_container_state "$DOCKER_CONTAINER_NAME")
+        mapfile -t container_state < <(get_container_state "$CORE_DOCKER_CONTAINER_NAME")
         state_health_status="${container_state[0]}"
         state_status="${container_state[1]}"
 
@@ -297,17 +281,27 @@ while true; do
             send_pushover_notification_not_rate_limited "$msg"
         fi
 
-        node_id=$(extract_node_id_from_docker_container "$DOCKER_CONTAINER_NAME")
+        node_id=$(extract_node_id_from_docker_container "$CORE_DOCKER_CONTAINER_NAME")
         if [ "$node_id" != "$previous_node_id" ]; then
             if [ -n "$previous_node_id" ]; then
                 msg="Node ID changed to:<br>$node_id"
+
+                # remove previous lock file for previous_node_id
+                LOCKFILE="./${SCRIPT_NAME}_${CORE_DOCKER_CONTAINER_NAME}_${previous_node_id}.lock"
+                rm -f "$LOCKFILE"
             else
                 msg="Node ID current initial value:<br>$node_id"
             fi
+
+            # redefine lockfile in the current directory
+            LOCKFILE="./${SCRIPT_NAME}_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.lock"
+            # create new lock file
+            create_lockfile "$LOCKFILE"
+
             previous_node_id="$node_id"
             send_pushover_notification_not_rate_limited "$msg"
         fi
-        echo "node_id=$node_id"
+        # echo "node_id=$node_id"
 
         if [ "$state_health_status" = "healthy" ] && [ "$state_status" = "running" ]; then
             break
@@ -317,8 +311,9 @@ while true; do
         custom_sleep 1
     done
 
-    if (($(date +%s) >= next_health_check)); then
-        node_is_healthy=$(get_node_health_from_docker_container "$DOCKER_CONTAINER_NAME")
+    # health check iota-core
+    if (($(date +%s) >= next_node_health_check)); then
+        node_is_healthy=$(get_node_health_from_core_docker_container "$CORE_DOCKER_CONTAINER_NAME")
         if [ "$node_is_healthy" != "$previous_node_is_healthy" ]; then
             if [ -n "$previous_node_is_healthy" ]; then
                 msg="Node is_healthy changed to:<br>$node_is_healthy"
@@ -328,10 +323,27 @@ while true; do
             previous_node_is_healthy="$node_is_healthy"
             send_pushover_notification_not_rate_limited "$msg"
         fi
-        next_health_check=$(($(date +%s) + health_check_frequency_seconds))
-        echo "next_health_check=$next_health_check"
+        next_node_health_check=$(($(date +%s) + health_check_frequency_seconds))
+        echo "next_node_health_check=$next_node_health_check"
     fi
 
+    # health check inx-indexer
+    if (($(date +%s) >= next_indexer_health_check)); then
+        indexer_is_healthy=$(get_node_health_from_indexer_docker_container "$INDEXER_DOCKER_CONTAINER_NAME")
+        if [ "$indexer_is_healthy" != "$previous_indexer_is_healthy" ]; then
+            if [ -n "$previous_indexer_is_healthy" ]; then
+                msg="Indexer is_healthy changed to:<br>$indexer_is_healthy"
+            else
+                msg="Indexer is_healthy current initial value:<br>$indexer_is_healthy"
+            fi
+            previous_indexer_is_healthy="$indexer_is_healthy"
+            send_pushover_notification_not_rate_limited "$msg"
+        fi
+        next_indexer_health_check=$(($(date +%s) + health_check_frequency_seconds))
+        echo "next_indexer_health_check=$next_indexer_health_check"
+    fi
+
+    # processing iota-core docker log
     if (($(date +%s) >= next_run_process_logs)); then
         push_notifications_sent=0
         run_process_logs

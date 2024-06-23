@@ -2,15 +2,17 @@
 PUSHOVER_USER_KEY=""
 PUSHOVER_APP_TOKEN=""
 
-# Time window and loop frequency settings
-# [s|m|h|d] (seconds, minutes, hours, days)
+# Format for Time Window, Loop Frequency and Health Check settings:
+#   [s|m|h|d] (seconds, minutes, hours, days)
 # Set the time span to read from the docker logs for (only) the first round
 # If empty whole log will be read
 TIME_WINDOW_FIRST_ROUND="1d"
+
 # Check docker log frequency. After this timespan the docker log will be read again.
 LOOP_FREQUENCY="2m"
 
-HEALTH_CHECK_FREQUENCY=5s
+# Health check frequency for iota-core and inx-indexer
+HEALTH_CHECK_FREQUENCY="5s"
 
 # Push notification limits
 MAX_PUSH_NOTIFICATIONS_PER_ROUND=5
@@ -23,8 +25,9 @@ TMP_DIR="./tmp"
 SEARCH_WORDS=("error" "fail" "critical" "warning" "panic")
 #SEARCH_WORDS=("error")
 
-# Docker container name
-DOCKER_CONTAINER_NAME="iota-core"
+# Docker container names
+CORE_DOCKER_CONTAINER_NAME="iota-core"
+INDEXER_DOCKER_CONTAINER_NAME="inx-indexer"
 
 # SED patterns to generalize all filtered log lines that contain SEARCH_WORDS
 SED_PATTERNS=(

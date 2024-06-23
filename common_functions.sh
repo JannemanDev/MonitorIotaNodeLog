@@ -1,7 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC2317  # Don't warn about unreachable commands in this file
 
-format_lines() {
+print_lines_from_file_formatted() {
     local filename="$1"
 
     # Check if the file exists
@@ -93,11 +93,19 @@ extract_node_id_from_docker_container() {
     fi
 }
 
-get_node_health_from_docker_container() {
+get_node_health_from_core_docker_container() {
     local docker_name="$1"
     local is_healthy
     node_info_output=$(sudo docker exec "$docker_name" /app/iota-core tools node-info 2>/dev/null)
     is_healthy=$(echo "$node_info_output" | grep "IsHealthy:" | awk '{print $2}')
+    echo "$is_healthy"
+}
+
+get_node_health_from_indexer_docker_container() {
+    local docker_name="$1"
+    local is_healthy
+    health_output=$(sudo docker exec "$docker_name" /app/inx-indexer tools health 2>/dev/null)
+    is_healthy=$(echo "$health_output" | grep "IsHealthy:" | awk '{print $2}')
     echo "$is_healthy"
 }
 
@@ -117,7 +125,7 @@ docker_running() {
     fi
 }
 
-# returns state_health_status and state_status as array
+# returns docker state_health_status and state_status as array
 get_container_state() {
     local docker_name="$1"
     local docker_inspect_json_output
@@ -150,4 +158,17 @@ send_pushover_notification() {
     fi
 
     return 0
+}
+
+create_lockfile() {
+    local lockfile="$1"
+
+    # Check if lockfile exists
+    if [ -e "$lockfile" ]; then
+        echo "Error: Lockfile $lockfile exists. Another instance of the script is running."
+        exit 1
+    fi
+
+    # Create lockfile
+    touch "$lockfile"
 }
