@@ -88,8 +88,10 @@ extract_node_id_from_docker_container() {
     if [[ $docker_logs_output =~ $regex ]]; then
         node_id="${BASH_REMATCH[1]}"
         echo "$node_id"
+        return 0
     else
         echo ""
+        return 1
     fi
 }
 
