@@ -4,9 +4,9 @@ source common_functions.sh
 
 usage() {
     echo "Usage: $0 [-t <time_window>] [-d default_answer] [-f use_docker_log_file_as_input]"
-    echo "Time window format          (optional): <number>[s|m|h|d] (seconds, minutes, hours, days)"
-    echo "Default answer              (optional): enter/y/Y for yes, anything else for no"
-    echo "Use Docker logfile as input (optional): path to the log file"
+    echo "Time window format          (optional): <number>[s|m|h|d] (seconds, minutes, hours, days). If not specified whole log will be read."
+    echo "Default answer              (optional): enter/y/Y for yes, anything else for no. If not specified prompt will be shown."
+    echo "Use Docker logfile as input (optional): path to the log file. If not specified docker logfile of iota-core container is used as input."
 }
 
 searchDockerLogForErrors() {
@@ -24,6 +24,13 @@ searchDockerLogForErrors() {
         # Source the settings from the configuration file
         # shellcheck source=settings.conf.example
         source "$SETTINGS_FILE"
+
+        if ! node_id=$(extract_node_id_from_docker_container "$CORE_DOCKER_CONTAINER_NAME"); then
+            echo "Error: Could not get node_id from docker container $CORE_DOCKER_CONTAINER_NAME"
+            return 1
+        fi
+
+        echo "node_id=$node_id"
     else
         echo "Settings were already loaded"
     fi
@@ -34,7 +41,7 @@ searchDockerLogForErrors() {
     use_docker_log_file_as_input=""
     show_help=false
 
-    echo "params=$#"
+    # echo "params=$#"
     # Parse parameters
     while [[ $# -gt 0 ]]; do
         echo "value=$1"
@@ -62,10 +69,10 @@ searchDockerLogForErrors() {
         esac
     done
 
-    echo "time_window=$time_window"
-    echo "default_answer=$default_answer"
-    echo "use_docker_log_file_as_input=$use_docker_log_file_as_input"
-    echo "show_help=$show_help"
+    # echo "time_window=$time_window"
+    # echo "default_answer=$default_answer"
+    # echo "use_docker_log_file_as_input=$use_docker_log_file_as_input"
+    # echo "show_help=$show_help"
 
     # If -h option is provided, show help and exit
     if [ "$show_help" = true ]; then
@@ -151,7 +158,11 @@ searchDockerLogForErrors() {
 
     # Show the number of lines in errors4.txt
     line_count=$(wc -l <"${TMP_DIR}/errors4_${CORE_DOCKER_CONTAINER_NAME}_${node_id}.txt")
-    echo "Number of unique errors found for this round in the docker log since $start_time is $line_count"
+    if [ -n "$time_window" ]; then
+        echo "Number of unique errors found for this round in the docker log since $start_time is $line_count"
+    else
+        echo "Number of unique errors found for this round in the whole docker log is $line_count"
+    fi
 
     # Prompt to show the output or use the default answer
     if [ -z "$default_answer" ]; then
